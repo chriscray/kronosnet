@@ -58,3 +58,5 @@ xml-*/
 doxyxml
 *.3
 cov*
+*/target/*
+*/Cargo.lock
