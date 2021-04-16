@@ -132,6 +132,15 @@ lazy_static! {
     static ref HANDLE_HASH: Mutex<HashMap<u64, PrivHandle>> = Mutex::new(HashMap::new());
 }
 
+fn get_errno() -> i32
+{
+    match Error::last_os_error().raw_os_error() {
+	Some(e) => e,
+	None => libc::EINVAL,
+    }
+}
+
+
 /// Callback from [handle_enable_sock_notify]
 pub type SockNotifyFn = fn(private_data: u64,
 			   datafd: i32,
@@ -598,8 +607,7 @@ pub fn recv(handle: Handle, buf: &[u8], channel: i8) -> Result<isize>
     if res >= 0 {
 	Ok(res)
     } else {
-	let errno = unsafe {*libc::__errno_location()};
-	if errno == libc::EAGAIN {
+	if get_errno() == libc::EAGAIN {
 	    Err(Error::new(ErrorKind::WouldBlock, "Try again"))
 	} else {
 	    Err(Error::last_os_error())
@@ -619,8 +627,7 @@ pub fn send(handle: Handle, buf: &[u8], channel: i8) -> Result<isize>
     if res >= 0 {
 	Ok(res)
     } else {
-	let errno = unsafe {*libc::__errno_location()};
-	if errno == libc::EAGAIN {
+	if get_errno() == libc::EAGAIN {
 	    Err(Error::new(ErrorKind::WouldBlock, "Try again"))
 	} else {
 	    Err(Error::last_os_error())
@@ -640,8 +647,7 @@ pub fn send_sync(handle: Handle, buf: &[u8], channel: i8) -> Result<()>
     if res == 0 {
 	Ok(())
     } else {
-	let errno = unsafe {*libc::__errno_location()};
-	if errno == libc::EAGAIN {
+	if get_errno() == libc::EAGAIN {
 	    Err(Error::new(ErrorKind::WouldBlock, "Try again"))
 	} else {
 	    Err(Error::last_os_error())
@@ -684,8 +690,37 @@ pub fn handle_enable_filter(handle: Handle,
     }
 }
 
+/// Set timer resolution
+pub fn handle_set_threads_timer_res(handle: Handle, timeres: u32) -> Result<()>
+{
+    let res = unsafe {
+	ffi::knet_handle_set_threads_timer_res(handle.knet_handle as ffi::knet_handle_t, timeres)
+    };
+    if res == 0 {
+	Ok(())
+    } else {
+	Err(Error::last_os_error())
+    }
+}
+
+/// Get timer resolution
+pub fn handle_get_threads_timer_res(handle: Handle) -> Result<u32>
+{
+    let mut c_timeres: u32 = 0;
+    let res = unsafe {
+	ffi::knet_handle_get_threads_timer_res(handle.knet_handle as ffi::knet_handle_t, &mut c_timeres)
+    };
+    if res == 0 {
+	Ok(c_timeres)
+    } else {
+	Err(Error::last_os_error())
+    }
+}
+
+
+
 /// Starts traffic moving. You must call this before knet will do anything.
-pub fn handle_set_fwd(handle: Handle, enabled: bool) -> Result<()>
+pub fn handle_setfwd(handle: Handle, enabled: bool) -> Result<()>
 {
     let res = unsafe {
 	ffi::knet_handle_setfwd(handle.knet_handle as ffi::knet_handle_t,
@@ -713,7 +748,7 @@ pub fn handle_enable_access_lists(handle: Handle, enabled: bool) -> Result<()>
 }
 
 /// Set frequency that PMTUd will check for MTU changes. value in milliseconds
-pub fn handle_pmtud_sefreq(handle: Handle, interval: u32) -> Result<()>
+pub fn handle_pmtud_setfreq(handle: Handle, interval: u32) -> Result<()>
 {
     let res = unsafe {
 	ffi::knet_handle_pmtud_setfreq(handle.knet_handle as ffi::knet_handle_t,

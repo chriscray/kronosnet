@@ -1,5 +1,5 @@
 #
-# Regerate the FFI bindings in src/sys from the current Corosync headers
+# Regerate the FFI bindings in src/sys from the current headers
 #
 regen()
 {

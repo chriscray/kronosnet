@@ -1,7 +1,13 @@
-
 // Testing the Knet Rust APIs
-extern crate rust_kronosnet as kronosnet;
-use kronosnet::libknet as knet;
+//
+// Copyright (c) 2021 Red Hat, Inc.
+//
+// All rights reserved.
+//
+// Author: Christine Caulfield (ccaulfi@redhat.com)
+//
+
+use libknet::libknet as knet;
 use std::net::{SocketAddr, IpAddr,Ipv4Addr};
 use std::thread::spawn;
 use std::sync::mpsc::Receiver;
@@ -186,7 +192,7 @@ fn setup_node(our_hostid: &knet::HostId, other_hostid: &knet::HostId) -> Result<
     }
 
 
-    match knet::handle_set_fwd(knet_handle, true) {
+    match knet::handle_setfwd(knet_handle, true) {
 	Ok(_) => {},
 	Err(e) => {
 	    println!("Error from setfwd(true): {}", e);
@@ -234,7 +240,7 @@ fn close_handle(handle: knet::Handle, remnode: u16) -> Result<()>
 {
     let other_hostid = knet::HostId::new(remnode);
 
-    match knet::handle_set_fwd(handle, false) {
+    match knet::handle_setfwd(handle, false) {
 	Ok(_) => {},
 	Err(e) => {
 	    println!("Error from setfwd 1 (false): {}", e);

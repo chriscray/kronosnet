@@ -1,14 +1,21 @@
-
 // Testing the Nozzle Rust APIs
-extern crate rust_kronosnet as kronosnet;
-use kronosnet::libnozzle as nozzle;
+//
+// Copyright (c) 2021 Red Hat, Inc.
+//
+// All rights reserved.
+//
+// Author: Christine Caulfield (ccaulfi@redhat.com)
+//
+
+use libnozzle::libnozzle as nozzle;
 use std::io::{Result, Error, ErrorKind};
 use std::env;
 use std::{thread, time};
 
 fn main() -> Result<()>
 {
-    let mut nozzle_name = String::from("rustnoz");
+    // Name must be tapXX for it to work on FreeBSD
+    let mut nozzle_name = String::from("tap33");
     let handle = match nozzle::open(&mut nozzle_name,  &String::from(env::current_dir().unwrap().to_str().unwrap())) {
 	Ok(h) => {
 	    println!("Opened device {}", nozzle_name);

@@ -1,3 +1,10 @@
+// Copyright (C) 2021 Red Hat, Inc.  All rights reserved.
+//
+// Authors: Christine Caulfield <ccaulfie@redhat.com>
+//
+// This software licensed under LGPL-2.0+
+//
+
 //! This crate provides access to the kronosnet libraries libknet and libnozzle
 //! from Rust. They are a fairly thin layer around the actual API calls but with Rust data types
 //! and iterators.
