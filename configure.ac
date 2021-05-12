@@ -268,6 +268,13 @@ if test "x$enable_man" = "xyes"; then
 	AC_SUBST([DOXYGEN2MAN])
 fi
 
+# For the Rust bindings
+AC_PATH_PROG([CARGO], [cargo], [notfound])
+AS_IF([test "$CARGO" = "notfound"], [AC_MSG_ERROR([cargo is required])])
+
+AC_PATH_PROG([RUSTC], [rustc], [notfound])
+AS_IF([test "$RUSTC" = "notfound"], [AC_MSG_ERROR([rustc is required])])
+
 # checks for libnozzle
 if test "x$enable_libnozzle" = xyes; then
 	if `echo $host_os | grep -q linux`; then
@@ -301,8 +308,12 @@ AC_SUBST([TESTDIR])
 if test "x${enable_debug}" = xyes; then
 	AC_DEFINE_UNQUOTED([DEBUG], [1], [Compiling Debugging code])
 	OPT_CFLAGS="-O0"
+	OPT_RUSTFLAGS="--debug"
+	RUST_TARGET_DIR="debug"
 else
 	OPT_CFLAGS="-O3"
+	OPT_RUSTFLAGS="--release"
+	RUST_TARGET_DIR="release"
 fi
 
 # gdb flags
@@ -350,6 +361,8 @@ UNWANTED_CFLAGS="-Wno-unused-parameter"
 
 AC_SUBST([AM_CFLAGS],["$SANITIZERS_CFLAGS $OPT_CFLAGS $GDB_FLAGS $DEFAULT_CFLAGS $UNWANTED_CFLAGS"])
 LDFLAGS="$SANITIZERS_LDFLAGS $LDFLAGS"
+AC_SUBST([RUSTFLAGS],["$OPT_RUSTFLAGS"])
+AC_SUBST([RUST_TARGET_DIR],["$RUST_TARGET_DIR"])
 
 AX_PROG_DATE
 AS_IF([test "$ax_cv_prog_date_gnu_date:$ax_cv_prog_date_gnu_utc" = yes:yes],
@@ -397,9 +410,13 @@ AC_CONFIG_FILES([
 		libnozzle/Makefile
 		libnozzle/libnozzle.pc
 		libnozzle/tests/Makefile
+		libnozzle/bindings/rust/Makefile
+		libnozzle/bindings/rust/tests/Makefile
 		libknet/Makefile
 		libknet/libknet.pc
 		libknet/tests/Makefile
+		libknet/bindings/rust/Makefile
+		libknet/bindings/rust/tests/Makefile
 		man/Makefile
 		man/Doxyfile-knet
 		man/Doxyfile-nozzle

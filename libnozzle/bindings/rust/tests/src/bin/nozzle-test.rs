@@ -113,9 +113,8 @@ fn main() -> Result<()>
 	}
     }
 
-
     // Wait a little while in case user wants to check with 'ip' command
-    thread::sleep(time::Duration::from_millis(10000));
+    thread::sleep(time::Duration::from_millis(1000));
 
     if let Err(e) = nozzle::set_down(handle){
 	println!("Error from set_down: {}", e);

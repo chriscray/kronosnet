@@ -16,7 +16,7 @@ EXTRA_DIST		= $(SYMFILE)
 
 if BUILD_LIBNOZZLE
 
-SUBDIRS			= . tests
+SUBDIRS			= . tests bindings/rust bindings/rust/tests
 
 libversion		= 1:0:0
 

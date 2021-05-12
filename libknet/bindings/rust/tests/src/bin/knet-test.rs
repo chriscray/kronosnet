@@ -7,7 +7,7 @@
 // Author: Christine Caulfield (ccaulfi@redhat.com)
 //
 
-use libknet::libknet as knet;
+use kronosnet::libknet as knet;
 use std::net::{SocketAddr, IpAddr,Ipv4Addr};
 use std::thread::spawn;
 use std::sync::mpsc::Receiver;

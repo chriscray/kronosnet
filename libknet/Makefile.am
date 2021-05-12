@@ -15,7 +15,7 @@ SYMFILE			= libknet_exported_syms
 
 EXTRA_DIST		= $(SYMFILE)
 
-SUBDIRS			= . tests
+SUBDIRS			= . tests bindings/rust
 
 # https://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
 libversion		= 2:0:0
