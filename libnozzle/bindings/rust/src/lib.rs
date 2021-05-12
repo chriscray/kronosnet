@@ -23,30 +23,24 @@
 //! {
 //!     let mut nozzle_name = String::from("rustnoz");
 //!     let handle = match nozzle::open(&mut nozzle_name,  &String::from(env::current_dir().unwrap().to_str().unwrap())) {
-//! 	Ok(h) => {
-//! 	    println!("Opened device {}", nozzle_name);
-//! 	    h
-//! 	},
-//! 	Err(e) => {
-//! 	    println!("Error from open: {}", e);
-//! 	    return Err(e);
-//! 	}
+//!         Ok(h) => {
+//!             println!("Opened device {}", nozzle_name);
+//!             h
+//!         },
+//!         Err(e) => {
+//!             println!("Error from open: {}", e);
+//!             return Err(e);
+//!         }
 //!     };
 //!
-//!     match nozzle::add_ip(handle, &"192.160.100.1".to_string(), &"24".to_string()){
-//! 	Ok(_) => {},
-//! 	Err(e) => {
-//! 	    println!("Error from add_ip: {}", e);
-//! 	    return Err(e);
-//! 	}
+//!     let if Err(e) = nozzle::add_ip(handle, &"192.160.100.1".to_string(), &"24".to_string()) {
+//!         println!("Error from add_ip: {}", e);
+//!         return Err(e);
 //!     }
 //!
-//!     match nozzle::set_mtu(handle, 157){
-//! 	Ok(_) => {},
-//! 	Err(e) => {
-//! 	    println!("Error from set_mtu: {}", e);
-//! 	    return Err(e);
-//! 	}
+//!     let if Err(e) = nozzle::set_mtu(handle, 157) {
+//!         println!("Error from set_mtu: {}", e);
+//!         return Err(e);
 //!     }
 //!
 //!     Ok(())
@@ -76,13 +70,11 @@ fn string_from_bytes(bytes: *const ::std::os::raw::c_char, max_length: usize) ->
 
     // Get length of the string in old-fashioned style
     let mut length: usize = 0;
-    let mut count : usize = 0;
-    for i in &newbytes {
+    for (count, i) in newbytes.iter().enumerate() {
 	if *i == 0 && length == 0 {
 	    length = count;
 	    break;
 	}
-	count += 1;
     }
 
     // Cope with an empty string
@@ -108,9 +100,9 @@ fn string_from_bytes_safe(bytes: *const ::std::os::raw::c_char, max_length: usiz
     }
 }
 
-fn string_to_bytes(s: &String, bytes: &mut [c_char]) ->Result<()>
+fn string_to_bytes(s: &str, bytes: &mut [c_char]) ->Result<()>
 {
-    let c_name = match CString::new(s.as_str()) {
+    let c_name = match CString::new(s) {
 	Ok(n) => n,
 	Err(_) => return Err(Error::new(ErrorKind::Other, "Rust conversion error")),
     };

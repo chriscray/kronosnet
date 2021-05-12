@@ -23,7 +23,7 @@
 //! use std::{thread, time};
 //!
 //! const CHANNEL: i8 = 1;
-
+//!
 //! pub fn main() -> Result<()>
 //! {
 //!     let host_id = knet::HostId::new(1);
@@ -33,56 +33,37 @@
 //!     spawn(move || logging_thread(log_receiver));
 //!
 //!     let knet_handle = match knet::handle_new(&our_hostid, Some(log_sender),
-//! 					         knet::LogLevel::Debug, knet::HandleFlags::NONE) {
-//! 	    Ok(h) => h,
-//! 	    Err(e) => {
-//! 	        return Err(e);
-//! 	    }
+//!                                              knet::LogLevel::Debug, knet::HandleFlags::NONE) {
+//!         Ok(h) => h,
+//!         Err(e) => {
+//!             return Err(e);
+//!         }
 //!     };
 //!
-//!     match knet::host_add(knet_handle, &other_hostid) {
-//! 	    Ok(_) => {},
-//! 	        Err(e) => {
-//! 	        return Err(e);
-//! 	    }
+//!     if let Err(e) = knet::host_add(knet_handle, &other_hostid) {
+//!         return Err(e);
 //!     }
-//!     match knet::link_set_config(knet_handle, &other_hostid, 0,
-//! 				    knet::TransportId::Udp,
-//! 				    &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000+(our_hostid.to_u16())),
-//!				    &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000+(other_hostid.to_u16())),
-//! 				    knet::LinkFlags::NONE) {
-//! 	    Ok(_) => {},
-//!         Err(e) => {
-//! 	        return Err(e);
-//! 	    }
+//!     if let Err(e) = knet::link_set_config(knet_handle, &other_hostid, 0,
+//!                                 knet::TransportId::Udp,
+//!                                 &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000+(our_hostid.to_u16())),
+//!                                 &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000+(other_hostid.to_u16())),
+//!                                 knet::LinkFlags::NONE) {
+//!         return Err(e);
 //!     }
-//!     match knet::handle_add_datafd(knet_handle, 0, CHANNEL) {
-//! 	        Ok(_) => {
-//! 	        },
-//! 	        Err(e) => {
-//! 	            return Err(e);
-//! 	    }
+//!     if let Err(e) = knet::handle_add_datafd(knet_handle, 0, CHANNEL) {
+//!         return Err(e);
 //!     }
 //!
-//!     match knet::handle_crypto_rx_clear_traffic(knet_handle, knet::RxClearTraffic::Allow) {
-//! 	    Ok(_) => {},
-//! 	    Err(e) => {
-//! 	        return Err(e);
-//! 	    }
+//!     if let Err(e) = knet::handle_crypto_rx_clear_traffic(knet_handle, knet::RxClearTraffic::Allow) {
+//!         return Err(e);
 //!     }
 //!
-//!     match knet::link_set_enable(knet_handle, &other_hostid, 0, true) {
-//! 	    Ok(_) => {},
-//! 	    Err(e) => {
-//! 	        return Err(e);
-//! 	    }
+//!     if let Err(e) = knet::link_set_enable(knet_handle, &other_hostid, 0, true) {
+//!         return Err(e);
 //!     }
 //!
-//!     match knet::handle_set_fwd(knet_handle, true) {
-//! 	    Ok(_) => {},
-//! 	    Err(e) => {
-//! 	        return Err(e);
-//! 	    }
+//!     if let Err(e) = knet::handle_set_fwd(knet_handle, true) {
+//!         return Err(e);
 //!     }
 //!
 //!     Ok()
@@ -107,12 +88,12 @@ use std::io::{Error, Result, ErrorKind};
 // Quick & dirty u8 to boolean
 fn u8_to_bool(val: u8) -> bool
 {
-    if val == 0 {false} else {true}
+    val != 0
 }
 
 fn u32_to_bool(val: u32) -> bool
 {
-    if val == 0 {false} else {true}
+    val != 0
 }
 
 // General internal routine to copy bytes from a C array into a Rust String
@@ -130,13 +111,11 @@ fn string_from_bytes(bytes: *const ::std::os::raw::c_char, max_length: usize) ->
 
     // Get length of the string in old-fashioned style
     let mut length: usize = 0;
-    let mut count : usize = 0;
-    for i in &newbytes {
+    for (count, i) in newbytes.iter().enumerate() {
 	if *i == 0 && length == 0 {
 	    length = count;
 	    break;
 	}
-	count += 1;
     }
 
     // Cope with an empty string
@@ -162,9 +141,9 @@ fn string_from_bytes_safe(bytes: *const ::std::os::raw::c_char, max_length: usiz
     }
 }
 
-fn string_to_bytes(s: &String, bytes: &mut [c_char]) ->Result<()>
+fn string_to_bytes(s: &str, bytes: &mut [c_char]) ->Result<()>
 {
-    let c_name = match CString::new(s.as_str()) {
+    let c_name = match CString::new(s) {
 	Ok(n) => n,
 	Err(_) => return Err(Error::new(ErrorKind::Other, "Rust conversion error")),
     };

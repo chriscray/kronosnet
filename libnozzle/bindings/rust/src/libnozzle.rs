@@ -25,7 +25,7 @@ pub struct Handle {
 const IFNAMSZ: usize = 16;
 
 /// Create a new tap device on the system
-pub fn open(devname: &mut String, updownpath: &String) -> Result<Handle>
+pub fn open(devname: &mut String, updownpath: &str) -> Result<Handle>
 {
     let mut c_devname: [c_char; IFNAMSZ] = [0; IFNAMSZ];
     let mut c_updownpath: [c_char; libc::PATH_MAX as usize] = [0; libc::PATH_MAX as usize];
@@ -38,8 +38,8 @@ pub fn open(devname: &mut String, updownpath: &String) -> Result<Handle>
 	ffi::nozzle_open(c_devname.as_mut_ptr(), c_devname_size, c_updownpath.as_ptr())
     };
 
-    if res == null_mut() {
-	return Err(Error::last_os_error());
+    if res.is_null() {
+	Err(Error::last_os_error())
     } else {
 	let temp = crate::string_from_bytes(c_devname.as_ptr(), IFNAMSZ)?;
 	*devname = temp;
@@ -68,7 +68,7 @@ pub enum Action {
     PostDown
 }
 impl Action {
-    pub fn to_u8(self: Action) -> u8
+    pub fn to_u8(self: &Action) -> u8
     {
 	match self {
 	    Action::PreUp => 0,
@@ -79,7 +79,7 @@ impl Action {
     }
 }
 
-/// Run an up/down script before/after configuring a device. see [Action]
+/// Run an up/down script before/after configuring a device. See [Action]
 pub fn run_updown(handle: Handle, action: Action) -> Result<String>
 {
     let c_exec_string : *mut *mut ::std::os::raw::c_char = &mut [0;0].as_mut_ptr();
@@ -93,14 +93,14 @@ pub fn run_updown(handle: Handle, action: Action) -> Result<String>
 	0 => {
 	    unsafe {
 		// This is unsafe because we deference a raw pointer
-		let resstring = crate::string_from_bytes(*c_exec_string as *mut i8, libc::PATH_MAX as usize)?;
+		let resstring = crate::string_from_bytes(*c_exec_string as *mut ::std::os::raw::c_char, libc::PATH_MAX as usize)?;
 		free(*c_exec_string as *mut c_void);
 		Ok(resstring)
 	    }
 	},
 	-1 => Err(Error::last_os_error()),
-	-2 => Err(Error::new(ErrorKind::Other, "Error executing shell scripts")),
-	_ => Err(Error::new(ErrorKind::Other, "Unknown error returned from nozzle_tun_updown()")),
+	-2 => Err(Error::new(ErrorKind::Other, "error executing shell scripts")),
+	_ => Err(Error::new(ErrorKind::Other, "unknown error returned from nozzle_tun_updown()")),
     }
 }
 
@@ -117,7 +117,7 @@ pub fn set_up(handle: Handle) -> Result<()>
     }
 }
 
-/// Mark nozzle device as "down"
+/// mark nozzle device as "down"
 pub fn set_down(handle: Handle) -> Result<()>
 {
     let res = unsafe {
@@ -132,13 +132,13 @@ pub fn set_down(handle: Handle) -> Result<()>
 const IPADDR_CHAR_MAX: usize = 128;
 const PREFIX_CHAR_MAX: usize = 4;
 
-/// Add an IP address to a nozzle device. Multiple addresses can be added to one device.
-/// The prefix is a the number that comes after the IP address when configuring:
+/// Add an ip address to a nozzle device. multiple addresses can be added to one device.
+/// The prefix is a the number that comes after the ip address when configuring:
 /// eg: 192.168.0.1/24 - the prefix is "24"
-pub fn add_ip(handle: Handle, ipaddr: &String, prefix: &String) -> Result<()>
+pub fn add_ip(handle: Handle, ipaddr: &str, prefix: &str) -> Result<()>
 {
     let mut c_ipaddr: [c_char; IPADDR_CHAR_MAX] = [0; IPADDR_CHAR_MAX];
-    let mut c_prefix: [c_char; PREFIX_CHAR_MAX] = [0; PREFIX_CHAR_MAX]; // TODO sizes
+    let mut c_prefix: [c_char; PREFIX_CHAR_MAX] = [0; PREFIX_CHAR_MAX];
 
     crate::string_to_bytes(&ipaddr, &mut c_ipaddr)?;
     crate::string_to_bytes(&prefix, &mut c_prefix)?;
@@ -153,11 +153,11 @@ pub fn add_ip(handle: Handle, ipaddr: &String, prefix: &String) -> Result<()>
 
 }
 
-/// Remove an IP address from a nozzle device
-pub fn del_ip(handle: Handle, ipaddr: &String, prefix: &String) -> Result<()>
+/// remove an ip address from a nozzle device
+pub fn del_ip(handle: Handle, ipaddr: &str, prefix: &str) -> Result<()>
 {
     let mut c_ipaddr: [c_char; IPADDR_CHAR_MAX] = [0; IPADDR_CHAR_MAX];
-    let mut c_prefix: [c_char; PREFIX_CHAR_MAX] = [0; PREFIX_CHAR_MAX]; // TODO sizes
+    let mut c_prefix: [c_char; PREFIX_CHAR_MAX] = [0; PREFIX_CHAR_MAX];
 
     crate::string_to_bytes(&ipaddr, &mut c_ipaddr)?;
     crate::string_to_bytes(&prefix, &mut c_prefix)?;
@@ -230,7 +230,7 @@ pub fn get_ips(handle: Handle) -> Result<Vec<Ip>>
     if res == 0 {
 	let mut ips : *mut ffi::nozzle_ip = c_ips;
 	unsafe {
-	    while ips != null_mut() {
+	    while !ips.is_null() {
 		ipvec.push(Ip::new(&*ips));
 		ips = (*ips).next;
 	    }
@@ -289,7 +289,7 @@ pub fn get_mac(handle: Handle) -> Result<String>
 	ffi::nozzle_get_mac(handle.nozzle_handle, &mut c_mac)
     };
     if res == 0 {
-	let mac = crate::string_from_bytes(c_mac, 19 as usize)?;
+	let mac = crate::string_from_bytes(c_mac, 19_usize)?;
 	Ok(mac)
     } else {
 	Err(Error::last_os_error())
@@ -297,9 +297,9 @@ pub fn get_mac(handle: Handle) -> Result<String>
 }
 
 /// Setsthe MAC address of the device
-pub fn set_mac(handle: Handle, ether_addr: &String) -> Result<()>
+pub fn set_mac(handle: Handle, ether_addr: &str) -> Result<()>
 {
-    let mut c_mac: [c_char; 19 as usize] = [0; 19 as usize];
+    let mut c_mac: [c_char; 19_usize] = [0; 19_usize];
     crate::string_to_bytes(&ether_addr, &mut c_mac)?;
     let res = unsafe {
 	ffi::nozzle_set_mac(handle.nozzle_handle, c_mac.as_ptr())
@@ -325,14 +325,14 @@ pub fn reset_mac(handle: Handle) -> Result<()>
 }
 
 /// Find the nozzle handle of a device by giving its name
-pub fn get_handle_by_name(devname: &String) -> Result<Handle>
+pub fn get_handle_by_name(devname: &str) -> Result<Handle>
 {
     let mut c_devname: [c_char; IFNAMSZ] = [0; IFNAMSZ];
     crate::string_to_bytes(&devname, &mut c_devname)?;
     let res = unsafe {
 	ffi::nozzle_get_handle_by_name(c_devname.as_ptr())
     };
-    if res != null_mut() {
+    if !res.is_null() {
 	Ok(Handle{nozzle_handle:res})
     } else {
 	Err(Error::last_os_error())
@@ -345,7 +345,7 @@ pub fn get_name_by_handle(handle: Handle) -> Result<String>
     let res = unsafe {
 	ffi::nozzle_get_name_by_handle(handle.nozzle_handle)
     };
-    if res != null_mut() {
+    if !res.is_null() {
 	crate::string_from_bytes(res, IFNAMSZ)
     } else {
 	Err(Error::last_os_error())

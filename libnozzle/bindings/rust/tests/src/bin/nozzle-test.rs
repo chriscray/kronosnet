@@ -27,50 +27,32 @@ fn main() -> Result<()>
 	}
     };
 
-    match nozzle::add_ip(handle, &"192.160.100.1".to_string(), &"24".to_string()){
-	Ok(_) => {},
-	Err(e) => {
-	    println!("Error from add_ip: {}", e);
-	    return Err(e);
-	}
+    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.1".to_string(), &"24".to_string()) {
+	println!("Error from add_ip: {}", e);
+	return Err(e);
     }
-    match nozzle::add_ip(handle, &"192.160.100.2".to_string(), &"24".to_string()){
-	Ok(_) => {},
-	Err(e) => {
-	    println!("Error from add_ip2: {}", e);
-	    return Err(e);
-	}
+    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.2".to_string(), &"24".to_string()) {
+	println!("Error from add_ip2: {}", e);
+	return Err(e);
     }
-    match nozzle::add_ip(handle, &"192.160.100.3".to_string(), &"24".to_string()){
-	Ok(_) => {},
-	Err(e) => {
-	    println!("Error from add_ip3: {}", e);
-	    return Err(e);
-	}
+    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.3".to_string(), &"24".to_string()) {
+	println!("Error from add_ip3: {}", e);
+	return Err(e);
     }
 
-    match nozzle::set_mac(handle, &"AA:00:04:00:22:01".to_string()){
-	Ok(_) => {},
-	Err(e) => {
-	    println!("Error from set_mac: {}", e);
-	    return Err(e);
-	}
+    if let Err(e) = nozzle::set_mac(handle, &"AA:00:04:00:22:01".to_string()) {
+	println!("Error from set_mac: {}", e);
+	return Err(e);
     }
 
-    match nozzle::set_mtu(handle, 157){
-	Ok(_) => {},
-	Err(e) => {
-	    println!("Error from set_mtu: {}", e);
-	    return Err(e);
-	}
+    if let Err(e) = nozzle::set_mtu(handle, 157) {
+	println!("Error from set_mtu: {}", e);
+	return Err(e);
     }
 
-    match nozzle::set_up(handle){
-	Ok(_) => {},
-	Err(e) => {
-	    println!("Error from set_up: {}", e);
-	    return Err(e);
-	}
+    if let Err(e) = nozzle::set_up(handle){
+	println!("Error from set_up: {}", e);
+	return Err(e);
     }
 
     match nozzle::run_updown(handle, nozzle::Action::Up){
@@ -87,7 +69,7 @@ fn main() -> Result<()>
 	    for i in ips {
 		print!(" {}", i);
 	    }
-	    println!("");
+	    println!();
 	},
 	Err(e) => {
 	    println!("Error from get_ips: {}", e);
@@ -135,20 +117,14 @@ fn main() -> Result<()>
     // Wait a little while in case user wants to check with 'ip' command
     thread::sleep(time::Duration::from_millis(10000));
 
-    match nozzle::set_down(handle){
-	Ok(_) => {},
-	Err(e) => {
-	    println!("Error from set_down: {}", e);
-	    return Err(e);
-	}
+    if let Err(e) = nozzle::set_down(handle){
+	println!("Error from set_down: {}", e);
+	return Err(e);
     }
 
-    match nozzle::close(handle) {
-	Ok(_) => {},
-	Err(e) => {
-	    println!("Error from open: {}", e);
-	    return Err(e);
-	}
+    if let Err(e) = nozzle::close(handle) {
+	println!("Error from open: {}", e);
+	return Err(e);
     }
     Ok(())
 }
