@@ -1,8 +1,9 @@
 
 EXTRA_DIST = Cargo.toml \
-		src/bin/nozzle-test.rs \
-		up.d/tap33
+	src/bin/nozzle-test.rs \
+	up.d/tap33
 
+if BUILD_LIBNOZZLE
 check_PROGRAMS = target/$(RUST_TARGET_DIR)/nozzle-test
 
 noinst_PROGRAMS = $(check_PROGRAMS)
@@ -19,3 +20,4 @@ target/$(RUST_TARGET_DIR)/nozzle-test: src/bin/nozzle-test.rs
 
 clean-local:
 	cargo clean
+endif

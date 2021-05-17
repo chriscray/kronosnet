@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 libnozzle = { path = ".." }
+libc = "0.2.93"
 
 [[bin]]
 name = "nozzle-test"

@@ -12,8 +12,16 @@ use std::io::{Result, Error, ErrorKind};
 use std::env;
 use std::{thread, time};
 
+const SKIP: i32 = 77;
+
 fn main() -> Result<()>
 {
+    // We must be root
+    if unsafe { libc::geteuid() != 0 } {
+	std::process::exit(SKIP);
+    }
+
+
     // Name must be tapXX for it to work on FreeBSD
     let mut nozzle_name = String::from("tap33");
     let handle = match nozzle::open(&mut nozzle_name,  &String::from(env::current_dir().unwrap().to_str().unwrap())) {
@@ -27,20 +35,37 @@ fn main() -> Result<()>
 	}
     };
 
-    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.1".to_string(), &"24".to_string()) {
+    // Get default state for checking reset_* calls later
+    let saved_mtu = match nozzle::get_mtu(handle) {
+	Ok(m) => m,
+	Err(e) => {
+	    println!("Error from get_mtu: {}", e);
+	    return Err(e);
+	}
+    };
+    let saved_mac = match nozzle::get_mac(handle) {
+	Ok(m) => m,
+	Err(e) => {
+	    println!("Error from get_mac: {}", e);
+	    return Err(e);
+	}
+    };
+
+    // Play with APIs
+    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.1", &"24") {
 	println!("Error from add_ip: {}", e);
 	return Err(e);
     }
-    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.2".to_string(), &"24".to_string()) {
+    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.2", &"24") {
 	println!("Error from add_ip2: {}", e);
 	return Err(e);
     }
-    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.3".to_string(), &"24".to_string()) {
+    if let Err(e) = nozzle::add_ip(handle, &"192.160.100.3", &"24") {
 	println!("Error from add_ip3: {}", e);
 	return Err(e);
     }
 
-    if let Err(e) = nozzle::set_mac(handle, &"AA:00:04:00:22:01".to_string()) {
+    if let Err(e) = nozzle::set_mac(handle, &"AA:00:04:00:22:01") {
 	println!("Error from set_mac: {}", e);
 	return Err(e);
     }
@@ -62,6 +87,7 @@ fn main() -> Result<()>
 	    return Err(e);
 	}
     }
+
 
     match nozzle::get_ips(handle) {
 	Ok(ips) => {
@@ -92,6 +118,14 @@ fn main() -> Result<()>
 	}
     }
 
+    match nozzle::get_fd(handle) {
+	Ok(f) => println!("Got FD: {}", f),
+	Err(e) => {
+	    println!("Error from get_fd: {}", e);
+	    return Err(e);
+	}
+    }
+
     match nozzle::get_handle_by_name(&nozzle_name) {
 	Ok(h) => if h != handle {
 	    return Err(Error::new(ErrorKind::Other, "get_handle_by_name returned wrong value"));
@@ -115,6 +149,44 @@ fn main() -> Result<()>
 
     // Wait a little while in case user wants to check with 'ip' command
     thread::sleep(time::Duration::from_millis(1000));
+
+    if let Err(e) = nozzle::del_ip(handle, &"192.160.100.3", &"24") {
+	println!("Error from del_ip: {}", e);
+	return Err(e);
+    }
+
+    if let Err(e) = nozzle::reset_mtu(handle) {
+	println!("Error from reset_mtu: {}", e);
+	return Err(e);
+    }
+    match nozzle::get_mtu(handle) {
+	Ok(m) => {
+	    if m != saved_mtu {
+		println!("Got default MTU of {}, not  {}", m, saved_mtu);
+	    }
+	}
+	Err(e) => {
+	    println!("Error from get_ips: {}", e);
+	    return Err(e);
+	}
+    }
+
+    if let Err(e) = nozzle::reset_mac(handle) {
+	println!("Error from reset_mac: {}", e);
+	return Err(e);
+    }
+    match nozzle::get_mac(handle) {
+	Ok(m) => {
+	    if m != saved_mac {
+		println!("Got default MAC of {}, not  {}", m, saved_mac);
+	    }
+	}
+	Err(e) => {
+	    println!("Error from get_ips: {}", e);
+	    return Err(e);
+	}
+    }
+
 
     if let Err(e) = nozzle::set_down(handle){
 	println!("Error from set_down: {}", e);

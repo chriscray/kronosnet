@@ -248,9 +248,9 @@ extern "C" fn rust_filter_fn(
 		*channel = r_channel;
 		*dst_host_ids_entries = hosts_vec.len();
 		let mut retvec = dst_host_ids;
-		for i in hosts_vec {
+		for i in &hosts_vec {
 		    *retvec = i.host_id;
-		    retvec = retvec.offset(size_of::<u16>() as isize); // next entry
+		    retvec = retvec.offset(1); // next entry
 		}
 	    }
 	}
@@ -1317,6 +1317,7 @@ pub fn host_get_host_list(handle: Handle) -> Result<Vec<HostId>>
 }
 
 /// Link Policies for [host_set_policy]
+#[derive(Copy, Clone, PartialEq)]
 pub enum LinkPolicy {
     Passive,
     Active,
@@ -1341,8 +1342,18 @@ impl LinkPolicy{
 	}
     }
 }
+impl fmt::Display for LinkPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	match self {
+	    LinkPolicy::Passive => write!(f, "Passive"),
+	    LinkPolicy::Active => write!(f, "Active"),
+	    LinkPolicy::Rr => write!(f, "RR"),
+	}
+    }
 
-/// Set the polciy for this host, this only makes sense if multiple links between hosts are configured
+}
+
+/// Set the policy for this host, this only makes sense if multiple links between hosts are configured
 pub fn host_set_policy(handle: Handle, host_id: &HostId, policy: LinkPolicy) -> Result<()>
 {
     let c_value: u8 = policy.to_u8();
@@ -1381,6 +1392,15 @@ pub struct HostStatus
     pub remote: bool,
     pub external: bool,
 }
+impl fmt::Display for HostStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	write!(f, "reachable: {}, ", self.reachable)?;
+	write!(f, "remote: {}, ", self.remote)?;
+	write!(f, "external: {}", self.external)?;
+	Ok(())
+    }
+}
+
 
 /// Return the current status of a host
 pub fn host_get_status(handle: Handle, host_id: &HostId) -> Result<HostStatus>
@@ -1753,7 +1773,8 @@ pub fn link_get_enable(handle: Handle, host_id: &HostId, link_id: u8) -> Result<
     }
 }
 
-// time_t varies vetween platforms so we convert here - ignore clippy!
+// time_t varies between platforms so we convert here
+// -- Ignore clippy warnings --
 fn to_timet(t: i64) -> ffi::time_t
 {
     match t.try_into() {

@@ -126,7 +126,7 @@ for i in $headerapicalls; do
 done
 
 
-
+echo ""
 echo "Summary"
 echo "-------"
 echo "Found   : $found"
@@ -151,7 +151,7 @@ which bc > /dev/null 2>&1 && {
 
 echo
 echo "Rust test Summary"
-echo "----------------"
+echo "-----------------"
 echo "Found   : $rust_test_found"
 echo "Missing : $rust_test_missing"
 echo "Total   : $rustapicalls"
