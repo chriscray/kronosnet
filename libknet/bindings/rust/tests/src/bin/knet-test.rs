@@ -50,6 +50,17 @@ fn host_notify_fn(private_data: u64,
 	     private_data, host_id.to_u16(), connected);
 }
 
+fn pmtud_fn(private_data: u64, data_mtu: u32) {
+    println!("PMTUD notify: host {}, MTU:{} ", private_data, data_mtu);
+}
+
+fn onwire_fn(private_data: u64,
+	     onwire_min_ver: u8,
+	     onwire_max_ver: u8,
+	     onwire_ver: u8) {
+    println!("Onwire ver notify for {} : {}/{}/{}", private_data, onwire_min_ver, onwire_max_ver, onwire_ver);
+}
+
 fn filter_fn(private_data: u64,
 	     _outdata: &[u8],
 	     txrx: knet::TxRx,
@@ -103,7 +114,7 @@ fn setup_node(our_hostid: &knet::HostId, other_hostid: &knet::HostId,
     if let Err(e) = knet::link_set_config(knet_handle, &other_hostid, 0,
 				knet::TransportId::Udp,
 				&SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000+(our_hostid.to_u16())),
-				&SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000+(other_hostid.to_u16())),
+				Some(&SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000+(other_hostid.to_u16()))),
 				knet::LinkFlags::NONE) {
 	println!("Error from link_set_config: {}", e);
 	return Err(e);
@@ -128,6 +139,15 @@ fn setup_node(our_hostid: &knet::HostId, other_hostid: &knet::HostId,
     }
     if let Err(e) = knet::handle_enable_filter(knet_handle, our_hostid.to_u16() as u64, Some(filter_fn)) {
 	println!("Error from handle_enable_filter: {}", e);
+	return Err(e);
+    }
+
+    if let Err(e) = knet::handle_enable_pmtud_notify(knet_handle, our_hostid.to_u16() as u64, Some(pmtud_fn)) {
+	println!("Error from handle_enable_pmtud_notify: {}", e);
+	return Err(e);
+    }
+    if let Err(e) = knet::handle_enable_onwire_ver_notify(knet_handle, our_hostid.to_u16() as u64, Some(onwire_fn)) {
+	println!("Error from handle_enable_onwire_ver_notify: {}", e);
 	return Err(e);
     }
     match knet::handle_add_datafd(knet_handle, 0, CHANNEL) {
@@ -187,7 +207,6 @@ fn setup_node(our_hostid: &knet::HostId, other_hostid: &knet::HostId,
 	    return Err(e);
 	}
     };
-
     match knet::handle_get_channel(knet_handle, data_fd) {
 	Ok(c) =>
 	    if c != CHANNEL {
@@ -258,6 +277,24 @@ fn close_handle(handle: knet::Handle, remnode: u16) -> Result<()>
 	println!("Error from setfwd 1 (false): {}", e);
 	return Err(e);
     }
+
+    let data_fd =
+    match knet::handle_get_datafd(handle, CHANNEL) {
+	Ok(f) => {
+	    println!("got datafd {} for channel", f);
+	    f
+	}
+	Err(e) => {
+	    println!("Error from handle_get_datafd: {}", e);
+	    return Err(e);
+	}
+    };
+    if let Err(e) = knet::handle_remove_datafd(handle, data_fd) {
+	println!("Error from handle_remove_datafd: {}", e);
+	return Err(e);
+    }
+
+
 
     if let Err(e) = knet::link_set_enable(handle, &other_hostid, 0, false) {
 	println!("Error from set_link_enable(false): {}", e);
@@ -345,16 +382,18 @@ fn send_messages(handle: knet::Handle, send_quit: bool) -> Result<()>
 	}
     }
 
-    // if let Err(e) = knet::handle_enable_filter(handle, 0, None) {
-    // 	println!("Error from handle_enable_filter (disable): {}", e);
-    // 	return Err(e);
-    // }
+    // Sleep to allow messages to calm down before we remove the filter
+    thread::sleep(time::Duration::from_millis(3000));
+    if let Err(e) = knet::handle_enable_filter(handle, 0, None) {
+	println!("Error from handle_enable_filter (disable): {}", e);
+	return Err(e);
+    }
 
-    // let s = String::from("SYNC TEST").into_bytes();
-    // if let Err(e) = knet::send_sync(handle, &s, CHANNEL) {
-    //  	println!("send_sync failed: {}", e);
-    //  	return Err(e);
-    // }
+    let s = String::from("SYNC TEST").into_bytes();
+    if let Err(e) = knet::send_sync(handle, &s, CHANNEL) {
+	println!("send_sync failed: {}", e);
+	return Err(e);
+    }
 
     if send_quit {
 	let b = String::from("QUIT").into_bytes();
@@ -402,7 +441,7 @@ fn test_link_host_list(handle: knet::Handle) -> Result<()>
 }
 
 // Try some metadata calls
-fn test_metadata_calls(handle: knet::Handle, host: &knet::HostId) ->Result<()>
+fn test_metadata_calls(handle: knet::Handle, host: &knet::HostId) -> Result<()>
 {
     if let Err(e) = knet::handle_set_threads_timer_res(handle, 190000) {
 	println!("knet_handle_set_threads_timer_res failed: {:?}", e);
@@ -427,7 +466,8 @@ fn test_metadata_calls(handle: knet::Handle, host: &knet::HostId) ->Result<()>
     match knet::handle_pmtud_get(handle) {
 	Ok(v) => {
 	    if v != 1000 {
-		println!("knet_handle_pmtud_get returned wrong value {}", v);
+		println!("knet_handle_pmtud_get returned wrong value {} (ALLOWED)", v);
+		// Don't fail on this, it might not have been set yet
 	    }
 	},
 	Err(e) => {
@@ -501,6 +541,173 @@ fn test_metadata_calls(handle: knet::Handle, host: &knet::HostId) ->Result<()>
 	}
     }
 
+
+    if let Err(e) = knet::link_set_priority(handle, host, 0, 5) {
+	println!("knet_link_set_priority failed: {:?}", e);
+	return Err(e);
+    }
+    match knet::link_get_priority(handle, host, 0) {
+	Ok(v) => {
+	    if v != 5 {
+		println!("knet_link_get_priority returned wrong value {}", v);
+	    }
+	},
+	Err(e) => {
+	    println!("knet_link_get_priority failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+
+    let name = match knet::host_get_name_by_host_id(handle, host) {
+	Ok(n) => {
+	    println!("Returned host name is {}", n);
+	    n
+	},
+	Err(e) => {
+	    println!("knet_host_get_name_by_host_id failed: {:?}", e);
+	    return Err(e);
+	}
+    };
+    match knet::host_get_id_by_host_name(handle, &name) {
+	Ok(n) => {
+	    println!("Returned host id is {}", n);
+	    if n != *host {
+		println!("Returned host id is not 2");
+		return Err(Error::new(ErrorKind::Other, "Error in get_id_by_host_name"));
+	    }
+	},
+	Err(e) => {
+	    println!("knet_host_get_id_by_host_name failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+
+    match knet::link_get_config(handle, host, 0) {
+	Ok((t, s, d, _f)) => {
+	    println!("Got link config: {}, {:?}, {:?}", t.to_string(),s,d);
+	},
+	Err(e) => {
+	    println!("knet_link_get_config failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+
+    // Can't set this to anything different
+    if let Err(e) = knet::handle_set_onwire_ver(handle, 1) {
+	println!("knet_link_set_onwire_ver failed: {:?}", e);
+	return Err(e);
+    }
+
+    match knet::handle_get_onwire_ver(handle, &host) {
+	Ok((min, max, ver)) => {
+	    println!("get_onwire_ver: Got onwire ver: {}/{}/{}", min, max, ver);
+	},
+	Err(e) => {
+	    println!("knet_link_get_onwire_ver failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+
+    // Logging
+    match knet::log_get_subsystem_name(3) {
+	Ok(n) => println!("subsystem name for 3 is {}", n),
+	Err(e) => {
+	    println!("knet_log_get_subsystem_name failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+    match knet::log_get_subsystem_id("TX") {
+	Ok(n) => println!("subsystem ID for TX is {}", n),
+	Err(e) => {
+	    println!("knet_log_get_subsystem_id failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+    match knet::log_get_loglevel_id("DEBUG") {
+	Ok(n) => println!("loglevel ID for DEBUG is {}", n),
+	Err(e) => {
+	    println!("knet_log_get_loglevel_id failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+
+    match knet::log_get_loglevel_name(1) {
+	Ok(n) => println!("loglevel name for 1 is {}", n),
+	Err(e) => {
+	    println!("knet_log_get_loglevel_name failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+
+    if let Err(e) = knet::log_set_loglevel(handle, knet::SubSystem::Handle , knet::LogLevel::Debug) {
+	println!("knet_log_set_loglevel failed: {:?}", e);
+	return Err(e);
+    }
+    match knet::log_get_loglevel(handle, knet::SubSystem::Handle) {
+	Ok(n) => println!("loglevel for Handle is {}", n),
+	Err(e) => {
+	    println!("knet_log_get_loglevel failed: {:?}", e);
+	    return Err(e);
+	}
+    }
+
+    Ok(())
+}
+
+
+fn test_acl(handle: knet::Handle, host: &knet::HostId) -> Result<()>
+{
+    if let Err(e) = knet::handle_enable_access_lists(handle, true) {
+	println!("Error from handle_enable_access_lists: {:?}", e);
+	return Err(e);
+    }
+
+    // Dynamic link for testing ACL APIs (it never gets used)
+    if let Err(e) = knet::link_set_config(handle, host, 1,
+					  knet::TransportId::Udp,
+					  &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8003_u16),
+					  None,
+					  knet::LinkFlags::NONE) {
+	println!("Error from link_set_config (dynamic): {}", e);
+	return Err(e);
+    }
+
+
+    // These ACLs are nonsense on stilts
+    if let Err(e) = knet::link_add_acl(handle, host, 1,
+				       &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8003_u16),
+				       &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8003_u16),
+				       knet::AclCheckType::Address, knet::AclAcceptReject::Accept) {
+	println!("Error from link_add_acl: {:?}", e);
+	return Err(e);
+    }
+    if let Err(e) = knet::link_insert_acl(handle, host, 1,
+					  0,
+					  &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 8003_u16),
+					  &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 8003_u16),
+					  knet::AclCheckType::Address, knet::AclAcceptReject::Accept) {
+	println!("Error from link_add_acl: {:?}", e);
+	return Err(e);
+    }
+    if let Err(e) = knet::link_rm_acl(handle, host, 1,
+				      &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8003_u16),
+				      &SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8003_u16),
+				      knet::AclCheckType::Address, knet::AclAcceptReject::Accept) {
+	println!("Error from link_rm_acl: {:?}", e);
+	return Err(e);
+    }
+    if let Err(e) = knet::link_clear_acl(handle, host, 1) {
+	println!("Error from link_clear_acl: {:?}", e);
+	return Err(e);
+    }
+
+    // Get rid of this link before it messes things up
+    if let Err(e) =knet::link_clear_config(handle, host, 1) {
+	println!("clear config (dynamic) failed: {}", e);
+	return Err(e);
+    }
+
+
     Ok(())
 }
 
@@ -554,6 +761,8 @@ fn main() -> Result<()>
     // Now test traffic
     let handle1 = setup_node(&host1, &host2, "host2")?;
     let handle2 = setup_node(&host2, &host1, "host1")?;
+
+    test_acl(handle1, &host2)?;
 
     // Copy stuff for the threads
     let handle1_clone = handle1;
@@ -614,6 +823,10 @@ fn main() -> Result<()>
 	    println!("link_get_status failed: {:?}", e);
 	    return Err(e);
 	}
+    }
+    if let Err(e) = knet::handle_clear_stats(handle1, knet::ClearStats::Handle) {
+	println!("handle_clear_stats failed: {:?}", e);
+	return Err(e);
     }
 
     test_metadata_calls(handle1, &knet::HostId::new(2))?;

@@ -1123,26 +1123,30 @@ pub fn handle_enable_onwire_ver_notify(handle: Handle,
 				       private_data: u64,
 				       onwire_notify_fn: Option<OnwireNotifyFn>) -> Result<()>
 {
-    let res = match HANDLE_HASH.lock().unwrap().get_mut(&(handle.knet_handle)) {
+    // This looks a bit different to the other _enable*_notify calls because knet
+    // calls the calback function in the API. Which results in a deadlock with our
+    // own mutex
+    match HANDLE_HASH.lock().unwrap().get_mut(&(handle.knet_handle)) {
 	Some(h) => {
 	    h.onwire_notify_private_data = private_data;
 	    h.onwire_notify_fn = onwire_notify_fn;
-	    match onwire_notify_fn {
-		Some(_f) =>
-		    unsafe {
-			ffi::knet_handle_enable_onwire_ver_notify(handle.knet_handle as ffi::knet_handle_t,
-								  handle.knet_handle as *mut c_void,
-								  Some(rust_onwire_notify_fn))
-		    },
-		None =>
-		    unsafe {
-			ffi::knet_handle_enable_onwire_ver_notify(handle.knet_handle as ffi::knet_handle_t,
-								  handle.knet_handle as *mut c_void,
-								  None)
-		    },
-	    }
 	},
 	None => return Err(Error::new(ErrorKind::Other, "Rust handle not found")),
+    };
+
+    let res = match onwire_notify_fn {
+	Some(_f) =>
+	    unsafe {
+		ffi::knet_handle_enable_onwire_ver_notify(handle.knet_handle as ffi::knet_handle_t,
+							  handle.knet_handle as *mut c_void,
+							  Some(rust_onwire_notify_fn))
+	    },
+	None =>
+	    unsafe {
+		ffi::knet_handle_enable_onwire_ver_notify(handle.knet_handle as ffi::knet_handle_t,
+							  handle.knet_handle as *mut c_void,
+							  None)
+	    },
     };
 
     if res == 0 {
@@ -1154,7 +1158,7 @@ pub fn handle_enable_onwire_ver_notify(handle: Handle,
 
 
 /// Get the onsure version for a node
-pub fn handle_get_onwire_ver(handle: Handle, host_id: HostId) -> Result<(u8,u8,u8)>
+pub fn handle_get_onwire_ver(handle: Handle, host_id: &HostId) -> Result<(u8,u8,u8)>
 {
     let mut onwire_min_ver = 0u8;
     let mut onwire_max_ver = 0u8;
@@ -1543,20 +1547,28 @@ pub fn get_transport_list() -> Result<Vec<TransportInfo>>
     }
 }
 
-/// Configure a link to a host ID
+/// Configure a link to a host ID. dst_addr may be None for a dynamic link.
 pub fn link_set_config(handle: Handle, host_id: &HostId, link_id: u8,
 		       transport: TransportId,
-		       src_addr: &SocketAddr, dst_addr: &SocketAddr, flags: LinkFlags) -> Result<()>
+		       src_addr: &SocketAddr, dst_addr: Option<&SocketAddr>, flags: LinkFlags) -> Result<()>
 {
     // Not really mut, but C is dumb
     let mut c_srcaddr : OsSocketAddr = (*src_addr).into();
-    let mut c_dstaddr : OsSocketAddr = (*dst_addr).into();
+
+    // dst_addr can be NULL/None if this is a dynamic link
+    let c_dstaddr = if let Some(dst) = dst_addr {
+	let c_dst : OsSocketAddr = (*dst).into();
+	c_dst.as_ptr()
+    } else {
+	null()
+    };
+
     let res = unsafe {
 	ffi::knet_link_set_config(handle.knet_handle as ffi::knet_handle_t,
 				  host_id.host_id, link_id,
 				  transport.to_u8(),
 				  c_srcaddr.as_mut_ptr() as *mut ffi::sockaddr_storage,
-				  c_dstaddr.as_mut_ptr() as *mut ffi::sockaddr_storage,
+				  c_dstaddr as *mut ffi::sockaddr_storage,
 				  flags.bits)
     };
     if res == 0 {
@@ -1658,19 +1670,46 @@ impl AclCheckType {
     }
 }
 
+// We need to have a zeroed-out stackaddr storage to pass to the ACL APIs
+// as knet compares the whole sockaddr_storage when using knet_rm_acl()
+fn make_new_sockaddr_storage(ss: &SocketAddr) -> ffi::sockaddr_storage
+{
+    // A blank one
+    let mut new_ss = ffi::sockaddr_storage {
+	ss_family: 0,
+	__ss_padding: [0; 118],
+	__ss_align: 0,
+    };
+    let p_new_ss : *mut ffi::sockaddr_storage = &mut new_ss;
+
+    // Rust only fills in what it thinks is necessary
+    let c_ss : OsSocketAddr = (*ss).into();
+
+    // Copy it
+    unsafe {
+	// Only copy as much as is in the OsSocketAddr
+	copy_nonoverlapping(c_ss.as_ptr(),
+			    p_new_ss as *mut libc::sockaddr,
+			    1);
+    }
+
+    new_ss
+}
+
+
 /// Add an ACL to a link, adds the ACL to the end of the list.
 pub fn link_add_acl(handle: Handle, host_id: &HostId, link_id: u8,
 		    ss1: &SocketAddr, ss2: &SocketAddr,
 		    check_type: AclCheckType, acceptreject: AclAcceptReject) -> Result<()>
 {
     // Not really mut, but C is dumb
-    let mut c_ss1 : OsSocketAddr = (*ss1).into();
-    let mut c_ss2 : OsSocketAddr = (*ss2).into();
+    let mut c_ss1 = make_new_sockaddr_storage(ss1);
+    let mut c_ss2 = make_new_sockaddr_storage(ss2);
     let res = unsafe {
 	ffi::knet_link_add_acl(handle.knet_handle as ffi::knet_handle_t,
 			       host_id.host_id, link_id,
-			       c_ss1.as_mut_ptr() as *mut ffi::sockaddr_storage,
-			       c_ss2.as_mut_ptr() as *mut ffi::sockaddr_storage,
+			       &mut c_ss1,
+			       &mut c_ss2,
 			       check_type.to_u32(), acceptreject.to_u32())
 
     };
@@ -1688,14 +1727,14 @@ pub fn link_insert_acl(handle: Handle, host_id: &HostId, link_id: u8,
 		       check_type: AclCheckType, acceptreject: AclAcceptReject) -> Result<()>
 {
     // Not really mut, but C is dumb
-    let mut c_ss1 : OsSocketAddr = (*ss1).into();
-    let mut c_ss2 : OsSocketAddr = (*ss2).into();
+    let mut c_ss1 = make_new_sockaddr_storage(ss1);
+    let mut c_ss2 = make_new_sockaddr_storage(ss2);
     let res = unsafe {
 	ffi::knet_link_insert_acl(handle.knet_handle as ffi::knet_handle_t,
 				  host_id.host_id, link_id,
 				  index,
-				  c_ss1.as_mut_ptr() as *mut ffi::sockaddr_storage,
-				  c_ss2.as_mut_ptr() as *mut ffi::sockaddr_storage,
+				  &mut c_ss1,
+				  &mut c_ss2,
 				  check_type.to_u32(), acceptreject.to_u32())
 
     };
@@ -1712,13 +1751,13 @@ pub fn link_rm_acl(handle: Handle, host_id: &HostId, link_id: u8,
 		   check_type: AclCheckType, acceptreject: AclAcceptReject) -> Result<()>
 {
     // Not really mut, but C is dumb
-    let mut c_ss1 : OsSocketAddr = (*ss1).into();
-    let mut c_ss2 : OsSocketAddr = (*ss2).into();
+    let mut c_ss1 = make_new_sockaddr_storage(ss1);
+    let mut c_ss2 = make_new_sockaddr_storage(ss2);
     let res = unsafe {
 	ffi::knet_link_rm_acl(handle.knet_handle as ffi::knet_handle_t,
 			      host_id.host_id, link_id,
-			      c_ss1.as_mut_ptr() as *mut ffi::sockaddr_storage,
-			      c_ss2.as_mut_ptr() as *mut ffi::sockaddr_storage,
+			      &mut c_ss1,
+			      &mut c_ss2,
 			      check_type.to_u32(), acceptreject.to_u32())
 
     };
@@ -2285,7 +2324,7 @@ pub fn log_get_loglevel_id(name: &str) -> Result<u8>
     Ok(res)
 }
 
-/// Get the ID of a loggin level, given its name
+/// Get the ID of a logging level, given its name
 pub fn log_get_loglevel_name(id: u8) -> Result<String>
 {
     let res = unsafe {
@@ -2317,6 +2356,16 @@ impl LogLevel {
 	    LogLevel::Warn => 1,
 	    LogLevel::Info => 2,
 	    LogLevel::Debug => 3,
+	}
+    }
+}
+impl fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	match self {
+	    LogLevel::Err => write!(f, "Err"),
+	    LogLevel::Warn => write!(f, "Warn"),
+	    LogLevel::Info => write!(f, "Info"),
+	    LogLevel::Debug => write!(f, "Debug"),
 	}
     }
 }
