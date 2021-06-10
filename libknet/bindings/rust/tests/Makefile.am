@@ -1,19 +1,32 @@
+#
+# Copyright (C) 2021 Red Hat, Inc.  All rights reserved.
+#
+# Author: Christine Caulfield <ccaulfie@redhat.com>
+#
+# This software licensed under GPL-2.0+
+#
 
-EXTRA_DIST = Cargo.toml \
-		src/bin/knet-test.rs
+MAINTAINERCLEANFILES	= Makefile.in
 
-check_PROGRAMS = \
-	target/$(RUST_TARGET_DIR)/knet-test
+include $(top_srcdir)/build-aux/check.mk
 
-noinst_PROGRAMS = $(check_PROGRAMS)
+EXTRA_DIST		= Cargo.toml \
+			  src/bin/knet-test.rs
 
-testsuitedir = $(TESTDIR)
-testsuite_PROGRAMS = $(check_PROGRAMS)
+check_PROGRAMS		= target/$(RUST_TARGET_DIR)/knet-test
 
-TESTS = $(check_PROGRAMS)
+noinst_PROGRAMS		= $(check_PROGRAMS)
 
-target/$(RUST_TARGET_DIR)/knet-test: src/bin/knet-test.rs
-	cargo build $(RUSTFLAGS)
+testsuitedir		= $(TESTDIR)
+testsuite_PROGRAMS	= $(check_PROGRAMS)
+
+AM_TESTS_ENVIRONMENT=LD_LIBRARY_PATH="$(abs_top_builddir)/libknet/.libs"
+
+TESTS			= $(check_PROGRAMS)
+
+target/$(RUST_TARGET_DIR)/knet-test$(EXEEXT): src/bin/knet-test.rs
+	$(CARGO) build $(RUST_FLAGS)
 
 clean-local:
-	cargo clean
+	-$(CARGO) clean
+	rm -rf Cargo.lock

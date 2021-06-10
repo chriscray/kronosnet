@@ -170,8 +170,12 @@ AM_CONDITIONAL([OVERRIDE_RPM_DEBUGINFO], [test x$override_rpm_debuginfo_option =
 AC_ARG_ENABLE([libnozzle],
 	[AS_HELP_STRING([--enable-libnozzle],[libnozzle support])],,
 	[ enable_libnozzle="yes" ])
-
 AM_CONDITIONAL([BUILD_LIBNOZZLE], [test x$enable_libnozzle = xyes])
+
+AC_ARG_ENABLE([rust-bindings],
+	[AS_HELP_STRING([--enable-rust-bindings],[rust bindings support])],,
+	[ enable_rust_bindings="yes" ])
+AM_CONDITIONAL([BUILD_RUST_BINDINGS], [test x$enable_rust_bindings = xyes])
 
 # Checks for libraries.
 AX_PTHREAD(,[AC_MSG_ERROR([POSIX threads support is required])])
@@ -268,12 +272,18 @@ if test "x$enable_man" = "xyes"; then
 	AC_SUBST([DOXYGEN2MAN])
 fi
 
-# For the Rust bindings
-AC_PATH_PROG([CARGO], [cargo], [notfound])
-AS_IF([test "$CARGO" = "notfound"], [AC_MSG_ERROR([cargo is required])])
+# check for rust tools to build bindings
+if test "x$enable_rust_bindings" = "xyes"; then
+	AC_PATH_PROG([CARGO], [cargo], [no])
+	if test "x$CARGO" = xno; then
+		AC_MSG_ERROR(["cargo command not found"])
+	fi
 
-AC_PATH_PROG([RUSTC], [rustc], [notfound])
-AS_IF([test "$RUSTC" = "notfound"], [AC_MSG_ERROR([rustc is required])])
+	AC_PATH_PROG([RUSTC], [rustc], [no])
+	if test "x$RUSTC" = xno; then
+		AC_MSG_ERROR(["rustc command not found"])
+	fi
+fi
 
 # checks for libnozzle
 if test "x$enable_libnozzle" = xyes; then
@@ -308,11 +318,11 @@ AC_SUBST([TESTDIR])
 if test "x${enable_debug}" = xyes; then
 	AC_DEFINE_UNQUOTED([DEBUG], [1], [Compiling Debugging code])
 	OPT_CFLAGS="-O0"
-	OPT_RUSTFLAGS="--debug"
+	RUST_FLAGS=""
 	RUST_TARGET_DIR="debug"
 else
 	OPT_CFLAGS="-O3"
-	OPT_RUSTFLAGS="--release"
+	RUST_FLAGS="--release"
 	RUST_TARGET_DIR="release"
 fi
 
@@ -361,8 +371,8 @@ UNWANTED_CFLAGS="-Wno-unused-parameter"
 
 AC_SUBST([AM_CFLAGS],["$SANITIZERS_CFLAGS $OPT_CFLAGS $GDB_FLAGS $DEFAULT_CFLAGS $UNWANTED_CFLAGS"])
 LDFLAGS="$SANITIZERS_LDFLAGS $LDFLAGS"
-AC_SUBST([RUSTFLAGS],["$OPT_RUSTFLAGS"])
-AC_SUBST([RUST_TARGET_DIR],["$RUST_TARGET_DIR"])
+AC_SUBST([RUST_FLAGS])
+AC_SUBST([RUST_TARGET_DIR])
 
 AX_PROG_DATE
 AS_IF([test "$ax_cv_prog_date_gnu_date:$ax_cv_prog_date_gnu_utc" = yes:yes],
@@ -410,11 +420,13 @@ AC_CONFIG_FILES([
 		libnozzle/Makefile
 		libnozzle/libnozzle.pc
 		libnozzle/tests/Makefile
+		libnozzle/bindings/Makefile
 		libnozzle/bindings/rust/Makefile
 		libnozzle/bindings/rust/tests/Makefile
 		libknet/Makefile
 		libknet/libknet.pc
 		libknet/tests/Makefile
+		libknet/bindings/Makefile
 		libknet/bindings/rust/Makefile
 		libknet/bindings/rust/tests/Makefile
 		man/Makefile
