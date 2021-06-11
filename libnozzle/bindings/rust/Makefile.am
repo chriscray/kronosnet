@@ -20,7 +20,10 @@ EXTRA_DIST		= Cargo.toml \
 			  src/sys/libnozzle.rs \
 			  src/sys/mod.rs
 
-all-local:
+src/sys/libnozzle.rs:	../../libnozzle.h
+	sh regenerate-sys.sh
+
+all-local: src/sys/libnozzle.rs
 	$(CARGO) build $(RUST_FLAGS)
 
 clean-local:

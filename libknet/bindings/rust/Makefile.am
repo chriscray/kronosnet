@@ -20,7 +20,10 @@ EXTRA_DIST		= Cargo.toml \
 			  src/sys/libknet.rs \
 			  src/sys/mod.rs
 
-all-local:
+src/sys/libknet.rs:	../../libknet.h
+	sh regenerate-sys.sh
+
+all-local: src/sys/libknet.rs
 	$(CARGO) build $(RUST_FLAGS)
 
 clean-local:
