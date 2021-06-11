@@ -368,6 +368,7 @@ fn logging_thread(knet_pipe: i32, sender: Sender<LogMsg>)
 
 
 #[derive(Copy, Clone, PartialEq)]
+#[repr(transparent)]
 /// a handle into the knet library, returned from [handle_new]
 pub struct Handle {
     knet_handle: u64,

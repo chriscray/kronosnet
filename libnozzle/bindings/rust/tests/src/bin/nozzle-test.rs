@@ -8,9 +8,12 @@
 //
 
 use libnozzle::libnozzle as nozzle;
-use std::io::{Result, Error, ErrorKind};
+use std::io::{Result, Error, ErrorKind, BufWriter, Write};
+use std::fmt::Write as fmtwrite;
 use std::env;
 use std::{thread, time};
+use std::fs::File;
+use std::fs;
 
 const SKIP: i32 = 77;
 
@@ -21,9 +24,7 @@ fn main() -> Result<()>
 	std::process::exit(SKIP);
     }
 
-
-    // Name must be tapXX for it to work on FreeBSD
-    let mut nozzle_name = String::from("tap33");
+    let mut nozzle_name = String::from("");
     let handle = match nozzle::open(&mut nozzle_name,  &String::from(env::current_dir().unwrap().to_str().unwrap())) {
 	Ok(h) => {
 	    println!("Opened device {}", nozzle_name);
@@ -75,12 +76,40 @@ fn main() -> Result<()>
 	return Err(e);
     }
 
-    if let Err(e) = nozzle::set_up(handle){
+    if let Err(e) = nozzle::set_up(handle) {
 	println!("Error from set_up: {}", e);
 	return Err(e);
     }
 
-    match nozzle::run_updown(handle, nozzle::Action::Up){
+    // Create the 'up' script so we can test the run_updown() function
+    let up_path = std::path::Path::new("up.d");
+    if let Err(e) = fs::create_dir_all(up_path) {
+	eprintln!("Error creating up.d directory: {:?}", e);
+	return Err(e);
+    }
+
+    let mut up_filename = String::new();
+    if let Err(e) = write!(up_filename, "up.d/{}", nozzle_name) {
+	eprintln!("Error making up.d filename: {:?}", e);
+	return Err(Error::new(ErrorKind::Other, "Error making up.d filename"));
+    }
+    match File::create(&up_filename) {
+	Err(e) => {
+	    println!("Cannot create up.d file {}: {}", &up_filename, e);
+	    return Err(e);
+        }
+        Ok(fl) => {
+	    let mut f = BufWriter::new(fl);
+	    writeln!(f, "#!/bin/sh\necho 'This is a test of an \"Up\" script'")?;
+	}
+    }
+    // A grotty way to do chmod, but normally this would be distributed by the sysadmin
+    unsafe {
+	let up_cstring = std::ffi::CString::new(up_filename).unwrap();
+	libc::chmod(up_cstring.as_ptr(), 0700);
+    }
+
+    match nozzle::run_updown(handle, nozzle::Action::Up) {
 	Ok(s) => println!("Returned from Up script: {}", s),
 	Err(e) => {
 	    println!("Error from run_updown: {}", e);

@@ -17,6 +17,11 @@ use std::{thread, time};
 
 const CHANNEL: i8 = 1;
 
+// Dirty C function to set the plugin path for testing (only)
+extern {
+    fn set_plugin_path(knet_h: knet::Handle);
+}
+
 // Callbacks
 fn sock_notify_fn(private_data: u64,
 		  datafd: i32,
@@ -106,6 +111,11 @@ fn setup_node(our_hostid: &knet::HostId, other_hostid: &knet::HostId,
 	    return Err(e);
 	}
     };
+
+    // Make sure we use the build-tree plugins if LD_LIBRRAY_PATH points to them
+    unsafe {
+	set_plugin_path(knet_handle);
+    }
 
     if let Err(e) = knet::host_add(knet_handle, &other_hostid) {
 	println!("Error from host_add: {}", e);

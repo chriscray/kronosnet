@@ -11,14 +11,11 @@ MAINTAINERCLEANFILES	= Makefile.in
 include $(top_srcdir)/build-aux/check.mk
 
 EXTRA_DIST		= Cargo.toml \
-			  src/bin/nozzle-test.rs \
-			  up.d/tap33
+			  src/bin/nozzle-test.rs
 
 check_PROGRAMS		= target/$(RUST_TARGET_DIR)/nozzle-test
 
 noinst_PROGRAMS		= $(check_PROGRAMS)
-
-noinst_SCRIPTS		= up.d/tap33
 
 testsuitedir		= $(TESTDIR)
 testsuite_PROGRAMS	= $(check_PROGRAMS)
