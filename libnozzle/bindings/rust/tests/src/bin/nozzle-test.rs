@@ -106,7 +106,7 @@ fn main() -> Result<()>
     // A grotty way to do chmod, but normally this would be distributed by the sysadmin
     unsafe {
 	let up_cstring = std::ffi::CString::new(up_filename).unwrap();
-	libc::chmod(up_cstring.as_ptr(), 0700);
+	libc::chmod(up_cstring.as_ptr(), 0o700);
     }
 
     match nozzle::run_updown(handle, nozzle::Action::Up) {
